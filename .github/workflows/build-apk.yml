@@ -1,0 +1,64 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            cmake libffi-dev libssl-dev \
+            lld
+
+      - name: Install Buildozer & Cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Build APK
+        run: |
+          yes | buildozer android debug 2>&1 | tail -50
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-debug
+          path: bin/*.apk
+
+      - name: Create Release & upload APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/*.apk
+          generate_release_notes: true
+          body: |
+            ## 全网VIP小说爬取 安卓版
+
+            ### 安装方式
+            1. 下载下方的 `.apk` 文件到手机
+            2. 打开文件管理器，找到 APK 并点击安装
+            3. 如提示"未知来源"，请在设置中允许安装
+
+            ### 功能
+            - 搜索全网 VIP 小说
+            - 在线阅读章节内容
+            - 自动保存章节到手机存储
