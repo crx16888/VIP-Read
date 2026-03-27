@@ -11,13 +11,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -32,30 +32,39 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip \
+            build-essential git zip unzip \
             autoconf automake libtool libtool-bin pkg-config \
             zlib1g-dev libncurses5-dev libncursesw5-dev \
             cmake libffi-dev libssl-dev \
-            lld ccache gettext
+            lld ccache gettext \
+            openjdk-17-jdk \
+            adb
 
-      - name: Install Buildozer & Cython
+      - name: Install Buildozer & dependencies
         run: |
-          pip install --upgrade pip setuptools
-          pip install buildozer cython virtualenv
+          pip install --upgrade pip setuptools wheel
+          pip install cython==0.29.36 virtualenv
+          pip install buildozer==1.5.0
+
+      - name: Cache .buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
 
       - name: Build APK
         run: |
-          yes | buildozer android debug
+          yes | buildozer android debug 2>&1 | tee build.log
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: List build output
-        if: always()
-        run: |
-          echo "=== bin/ contents ==="
-          ls -la bin/ 2>/dev/null || echo "bin/ directory not found"
-          echo "=== .buildozer logs ==="
-          find .buildozer -name "*.log" -exec tail -30 {} \; 2>/dev/null || true
+      - name: Show build log tail on failure
+        if: failure()
+        run: tail -200 build.log
 
       - name: Upload APK artifact
         if: success()
@@ -71,7 +80,7 @@ jobs:
           files: bin/*.apk
           generate_release_notes: true
           body: |
-            ## 全网VIP小说爬取 安卓版
+            ## VIP小说爬取 安卓版
 
             ### 安装方式
             1. 下载下方的 `.apk` 文件到手机
